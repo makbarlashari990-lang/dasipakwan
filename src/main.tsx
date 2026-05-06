@@ -5,6 +5,8 @@ import './index.css';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 
+import { HelmetProvider } from 'react-helmet-async';
+
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
@@ -18,6 +20,8 @@ testConnection();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <HelmetProvider>
+      <App />
+    </HelmetProvider>
   </StrictMode>,
 );

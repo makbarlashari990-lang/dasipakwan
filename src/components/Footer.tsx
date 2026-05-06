@@ -33,6 +33,24 @@ export default function Footer() {
               <li><Link to="/profile" className="hover:text-ruby transition-colors">پروفائل</Link></li>
             </ul>
           </div>
+          <div className="col-span-1 md:col-span-4 mt-8 bg-ruby/5 p-8 rounded-[40px] border border-ruby/10">
+            <div className="flex flex-col md:flex-row-reverse items-center justify-between gap-8">
+              <div className="text-right">
+                <h4 className="text-2xl font-serif font-black text-coffee dark:text-dark-text mb-2">نیوز لیٹر سبسکرائب کریں</h4>
+                <p className="text-sm text-gray-400 font-bold">ہفتہ وار ریسیپیز اور کوکنگ ٹپس براہ راست اپنی ای میل میں پائیں</p>
+              </div>
+              <form className="flex w-full md:w-auto h-14 relative group">
+                <input 
+                  type="email" 
+                  placeholder="اپنی ای میل درج کریں..."
+                  className="flex-grow md:w-80 bg-white dark:bg-dark-surface border-2 border-ruby/10 rounded-full px-8 outline-none focus:border-ruby transition-all text-right font-bold"
+                />
+                <button className="absolute left-1 top-1 bottom-1 px-8 bg-ruby text-white rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-coffee transition-all shadow-lg active:scale-95">
+                  شامل ہوں
+                </button>
+              </form>
+            </div>
+          </div>
         </div>
         <div className="pt-10 border-t border-gold/5 flex flex-col md:flex-row-reverse justify-between items-center gap-6 text-[10px] font-black uppercase tracking-widest text-coffee/40 dark:text-dark-text/40">
            <div className="flex gap-8">

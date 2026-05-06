@@ -15,6 +15,7 @@ import SubmitRecipe from './pages/SubmitRecipe';
 import Collections from './pages/Collections';
 import CollectionDetail from './pages/CollectionDetail';
 import Profile from './pages/Profile';
+import ScrollToTop from './components/ScrollToTop';
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
               </AnimatePresence>
             </main>
             <Footer />
+            <ScrollToTop />
           </div>
         </div>
       </Router>

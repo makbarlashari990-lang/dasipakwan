@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Users, ChevronLeft, Heart, Share2, Printer, CheckCircle2, Bookmark, Star, Facebook, Twitter, Send, X, Camera, Upload, Image as ImageIcon, PartyPopper, Play, Sparkles, Wand2, Info, ChefHat, Utensils, Mic, MessageSquare, Plus, Minus, FolderHeart, Check, Search, Loader2, Pause, RotateCcw, Volume2, VolumeX, Maximize, Minimize, Replace, Zap } from 'lucide-react';
+import { Clock, Users, ChevronLeft, Heart, Share2, Printer, CheckCircle2, Bookmark, Star, Facebook, Twitter, Send, X, Camera, Upload, Image as ImageIcon, PartyPopper, Play, Sparkles, Wand2, Info, ChefHat, Utensils, Mic, MessageSquare, Plus, Minus, FolderHeart, Check, Search, Loader2, Pause, RotateCcw, Volume2, VolumeX, Maximize, Minimize, Replace, Zap, ShoppingCart, ArrowRight } from 'lucide-react';
 import { recipes } from '../data/recipes';
 import { useFavorites } from '../hooks/useFavorites';
 import { cn } from '../lib/utils';
@@ -11,6 +11,7 @@ import { db, signInWithGoogle, storage } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { GoogleGenAI, Type } from "@google/genai";
+import { Helmet } from 'react-helmet-async';
 
 const categoryMap: Record<string, string> = {
   'Breakfast': 'ناشتہ',
@@ -41,6 +42,40 @@ export default function RecipeDetail() {
   const [creationNote, setCreationNote] = useState('');
   const [creations, setCreations] = useState<any[]>([]);
   const [servings, setServings] = useState<number>(recipe ? parseInt(recipe.servings) : 4);
+  const [aiScaledIngredients, setAiScaledIngredients] = useState<string[] | null>(null);
+  const [isScalingWithAI, setIsScalingWithAI] = useState(false);
+
+  const handleAIScale = async (newServings: number) => {
+    if (!recipe) return;
+    setIsScalingWithAI(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Scale the ingredients for the recipe "${recipe.title}" from ${recipe.servings} original servings to ${newServings} target servings.
+      Original Ingredients: ${recipe.ingredients.join(' | ')}
+      
+      Respond in JSON format as a string array of scaled ingredients in Urdu. Keep the same order.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        }
+      });
+      const data = JSON.parse(response.text);
+      setAiScaledIngredients(data);
+      setServings(newServings);
+    } catch (error) {
+      console.error("AI Scaling error:", error);
+      setServings(newServings);
+    } finally {
+      setIsScalingWithAI(false);
+    }
+  };
 
   const scalingFactor = recipe ? servings / parseInt(recipe.servings) : 1;
 
@@ -537,7 +572,7 @@ export default function RecipeDetail() {
     }
   }, [recipe?.id]);
 
-  const handleRate = (rating: number) => {
+  const handleRate = async (rating: number) => {
     if (!recipe) return;
     
     const prevRating = userRating;
@@ -552,14 +587,64 @@ export default function RecipeDetail() {
     setRatingStats(newStats);
     localStorage.setItem(`recipe_stats_${recipe.id}`, JSON.stringify(newStats));
 
+    // Save to Firestore if logged in
+    if (user) {
+      try {
+        const ratingRef = collection(db, 'ratings');
+        const q = query(ratingRef, where('recipeId', '==', recipe.id), where('userId', '==', user.uid));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const docRef = doc(db, 'ratings', querySnapshot.docs[0].id);
+          await updateDoc(docRef, { rating, updatedAt: serverTimestamp() });
+        } else {
+          await addDoc(ratingRef, {
+            recipeId: recipe.id,
+            userId: user.uid,
+            rating,
+            createdAt: serverTimestamp()
+          });
+        }
+      } catch (error) {
+        console.error("Error saving rating to Firestore:", error);
+      }
+    }
+
     setShowRatingSuccess(true);
     setTimeout(() => setShowRatingSuccess(false), 3000);
   };
 
+  const recipeSchema = recipe ? {
+    "@context": "https://schema.org/",
+    "@type": "Recipe",
+    "name": recipe.title,
+    "image": [recipe.image],
+    "author": {
+      "@type": "Person",
+      "name": "Desi Dastarkhwan"
+    },
+    "datePublished": "2024-03-20",
+    "description": recipe.description,
+    "prepTime": "PT" + (recipe.prepTime.match(/\d+/) ? recipe.prepTime.match(/\d+/)![0] : "20") + "M",
+    "cookTime": "PT" + (recipe.cookTimeMinutes || 45) + "M",
+    "totalTime": "PT" + ((parseInt(recipe.prepTime) || 20) + (recipe.cookTimeMinutes || 45)) + "M",
+    "recipeYield": recipe.servings + " servings",
+    "recipeCategory": recipe.category,
+    "recipeIngredient": recipe.ingredients,
+    "recipeInstructions": recipe.instructions.map((step, index) => ({
+      "@type": "HowToStep",
+      "text": step,
+      "position": index + 1
+    }))
+  } : null;
+
   if (!recipe) {
     return (
-      <div className="pt-32 pb-24 text-center dark:text-dark-text">
-        <h2 className="text-3xl font-bold mb-4">ریسیپی نہیں ملی</h2>
+      <div className="pt-32 pb-24 text-center dark:text-dark-text bg-cream min-h-screen">
+        <Helmet>
+          <title>Recipe Not Found | Desi Dastarkhwan</title>
+        </Helmet>
+        <h2 className="text-3xl font-bold mb-4 font-serif">ریسیپی نہیں ملی</h2>
         <Link to="/recipes" className="text-ruby font-bold underline">تمام ریسیپیز پر واپس جائیں</Link>
       </div>
     );
@@ -589,8 +674,23 @@ export default function RecipeDetail() {
     }
   ];
 
+  const affiliateProducts = [
+    { name: 'پریمیم کڑاہی پین', price: 'RS 4,500', image: 'https://images.unsplash.com/photo-1594759077556-997e06a8f6d8?q=80&w=300&fit=crop', url: '#' },
+    { name: 'پیشہ ورانہ چھری سیٹ', price: 'RS 2,800', image: 'https://images.unsplash.com/photo-1593618998160-e34014e67546?q=80&w=300&fit=crop', url: '#' },
+    { name: 'ایئر فرائیر (پریمیم)', price: 'RS 18,500', image: 'https://images.unsplash.com/photo-1626074353765-517a681e40be?q=80&w=300&fit=crop', url: '#' },
+  ];
+
   return (
     <div className="pt-24 pb-24 text-right dark:bg-dark-bg transition-colors duration-300">
+      <Helmet>
+        <title>{recipe.title} | Desi Dastarkhwan</title>
+        <meta name="description" content={recipe.description} />
+        {recipeSchema && (
+          <script type="application/ld+json">
+            {JSON.stringify(recipeSchema)}
+          </script>
+        )}
+      </Helmet>
       {/* Header / Breadcrumb */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-between flex-row-reverse no-print">
         <Link to="/recipes" className="flex items-center gap-2 text-gray-500 dark:text-dark-text/60 hover:text-ruby transition-colors font-bold text-sm uppercase tracking-widest flex-row-reverse">
@@ -905,11 +1005,35 @@ export default function RecipeDetail() {
 
               {/* Serving Scaler */}
               <div className="bg-white dark:bg-dark-surface p-6 rounded-[30px] border border-ruby/10 shadow-lg mb-8 flex items-center justify-between flex-row-reverse">
-                 <div className="text-right">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">مقدار منتخب کریں</div>
+                 <div className="text-right flex-1">
+                    <div className="flex items-center justify-between mb-2 flex-row-reverse">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">مقدار منتخب کریں</div>
+                      <div className="flex items-center gap-2">
+                        <VoiceInput 
+                          onResult={(text) => {
+                            const match = text.match(/(\d+)/);
+                            if (match) {
+                              handleAIScale(parseInt(match[1]));
+                            }
+                          }}
+                          className="scale-75"
+                        />
+                        <button 
+                          onClick={() => handleAIScale(servings)}
+                          disabled={isScalingWithAI}
+                          className="p-1.5 bg-gold/10 text-gold rounded-lg hover:bg-gold/20 transition-colors"
+                          title="AI سے مقدار درست کریں"
+                        >
+                          {isScalingWithAI ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-4 flex-row-reverse">
                        <button 
-                         onClick={() => setServings(Math.max(1, servings - 1))}
+                         onClick={() => {
+                           setServings(Math.max(1, servings - 1));
+                           setAiScaledIngredients(null);
+                         }}
                          className="w-10 h-10 rounded-xl bg-ruby/5 text-ruby flex items-center justify-center hover:bg-ruby hover:text-white transition-all active:scale-90"
                        >
                          <Minus className="w-5 h-5" />
@@ -918,31 +1042,37 @@ export default function RecipeDetail() {
                           <input 
                             type="number" 
                             value={servings}
-                            onChange={(e) => setServings(Math.max(1, parseInt(e.target.value) || 1))}
+                            onChange={(e) => {
+                              setServings(Math.max(1, parseInt(e.target.value) || 1));
+                              setAiScaledIngredients(null);
+                            }}
                             className="w-16 bg-transparent text-2xl font-black text-coffee dark:text-dark-text text-center focus:outline-none"
                           />
                           <span className="text-[10px] font-bold text-gray-400">افراد</span>
                        </div>
                        <button 
-                         onClick={() => setServings(servings + 1)}
+                         onClick={() => {
+                           setServings(servings + 1);
+                           setAiScaledIngredients(null);
+                         }}
                          className="w-10 h-10 rounded-xl bg-ruby/5 text-ruby flex items-center justify-center hover:bg-ruby hover:text-white transition-all active:scale-90"
                        >
                          <Plus className="w-5 h-5" />
                        </button>
                     </div>
                  </div>
-                 <Users className="w-10 h-10 text-ruby/20" />
+                 <Users className="w-10 h-10 text-ruby/20 ml-4" />
               </div>
 
               <h3 className="text-3xl font-serif font-black text-coffee dark:text-dark-text mb-10">ضروری اجزاء</h3>
               <div className="space-y-6 mb-8">
-                {recipe.ingredients.map((item, i) => (
+                {(aiScaledIngredients || recipe.ingredients).map((item, i) => (
                   <div key={i} className="flex items-start gap-4 p-4 rounded-3xl hover:bg-ruby/5 dark:hover:bg-ruby/10 transition-all group flex-row-reverse">
                     <div className="w-6 h-6 rounded-full border-2 border-ruby/20 flex-shrink-0 mt-1 group-hover:bg-ruby group-hover:border-ruby transition-all flex items-center justify-center">
                        <CheckCircle2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
                     </div>
                     <p className="text-coffee dark:text-dark-text font-bold leading-relaxed">
-                      {scaleQuantity(item, scalingFactor)}
+                      {aiScaledIngredients ? item : scaleQuantity(item, scalingFactor)}
                     </p>
                   </div>
                 ))}
@@ -1060,6 +1190,46 @@ export default function RecipeDetail() {
                 </AnimatePresence>
               </div>
 
+              {/* Affiliate / Kitchen Tools Section */}
+              <div className="mt-16 mb-16 bg-ruby/5 p-8 md:p-10 rounded-[50px] border-2 border-dashed border-ruby/10">
+                 <div className="flex items-center justify-between mb-8 flex-row-reverse">
+                    <div className="text-right">
+                       <h4 className="text-2xl font-serif font-black text-coffee dark:text-dark-text mb-1">اس ترکیب کے لیے ضروری اوزار</h4>
+                       <p className="text-xs text-ruby/60 font-bold uppercase tracking-widest">ہمارے تجویز کردہ بہترین کچن آئٹمز</p>
+                    </div>
+                    <ShoppingCart className="w-8 h-8 text-ruby/20" />
+                 </div>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {affiliateProducts.map((prod, i) => (
+                       <a 
+                         key={i}
+                         href={prod.url}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="bg-white dark:bg-dark-surface p-4 rounded-3xl shadow-sm border border-ruby/10 hover:shadow-xl transition-all group"
+                       >
+                          <div className="aspect-square rounded-2xl overflow-hidden mb-4 relative">
+                             <img src={prod.image} alt={prod.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                             <div className="absolute top-2 right-2 px-3 py-1 bg-gold text-coffee text-[10px] font-black rounded-full shadow-lg">AMAZON</div>
+                          </div>
+                          <h5 className="font-bold text-coffee dark:text-dark-text mb-1 text-sm">{prod.name}</h5>
+                          <div className="flex items-center justify-between flex-row-reverse">
+                             <span className="text-ruby font-black text-xs">{prod.price}</span>
+                             <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400">
+                                <span>خریدیں</span>
+                                <ArrowRight className="w-3 h-3 rotate-180" />
+                             </div>
+                          </div>
+                       </a>
+                    ))}
+                 </div>
+                 
+                 <div className="mt-8 pt-8 border-t border-ruby/10 text-center">
+                    <p className="text-[10px] text-gray-400 font-medium italic">نوٹ: ان لنکس سے ہونے والی آمدنی 'دیسی دسترخوان' کو چلانے میں مدد دیتی ہے۔</p>
+                 </div>
+              </div>
+
               {/* Personal Ingredients Log */}
               <AnimatePresence>
                 {personalIngredients.length > 0 && (
@@ -1084,6 +1254,22 @@ export default function RecipeDetail() {
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Sponsored Content / Sponsored Tip */}
+              <div className="bg-coffee text-white p-8 rounded-[40px] relative overflow-hidden group shadow-2xl border-4 border-gold/20 mb-12">
+                 <div className="absolute inset-0 bg-motif opacity-10 pointer-events-none" />
+                 <div className="relative z-10 flex flex-col md:flex-row-reverse items-center gap-6 justify-between">
+                    <div className="text-right">
+                       <div className="flex items-center gap-2 justify-end mb-2">
+                          <Star className="w-4 h-4 text-gold fill-current" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gold">اسپانسر شدہ ٹپ</span>
+                       </div>
+                       <h4 className="text-xl font-serif font-black mb-2 italic">بہترین ذائقے کے لیے 'شاہ جی' گھی استعمال کریں</h4>
+                       <p className="text-xs text-white/60 font-medium">اصلی دیسی گھی آپ کے خانوں میں وہ خاص خوشبو لاتا ہے جو نسلوں سے ہماری پہچان ہے۔</p>
+                    </div>
+                    <button className="px-8 py-3 bg-gold text-coffee rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl">مزید جانیں</button>
+                 </div>
+              </div>
             </div>
           </div>
 

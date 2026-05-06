@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChefHat, Plus, Minus, Upload, CheckCircle2, AlertCircle, Loader2, ArrowRight, ArrowLeft, Mic } from 'lucide-react';
+import { ChefHat, Plus, Minus, Upload, CheckCircle2, AlertCircle, Loader2, ArrowRight, ArrowLeft, Mic, Sparkles, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, signInWithGoogle, handleFirestoreError, OperationType, storage } from '../lib/firebase';
@@ -8,6 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import VoiceInput from '../components/VoiceInput';
+import { GoogleGenAI, Type } from '@google/genai';
 
 const categories = ['Breakfast', 'Lunch', 'Dinner', 'Street Food', 'Desserts'];
 const difficulties = ['Easy', 'Medium', 'Hard'];
@@ -31,6 +32,79 @@ export default function SubmitRecipe() {
     ingredients: [''],
     instructions: [''],
   });
+
+  // AI Generation State
+  const [aiKeywords, setAiKeywords] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const generateRecipeFromAI = async () => {
+    if (!aiKeywords.trim()) return;
+    setIsGeneratingAI(true);
+    setAiError(null);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Based on these keywords for a Pakistani recipe: "${aiKeywords}", generate:
+      1. A catchy title in Urdu.
+      2. A brief, appetizing description in Urdu.
+      3. A list of main ingredients in Urdu.
+      4. Estimated prep time and cook time.
+      5. Difficulty level.
+      6. Servings.
+
+      Focus on traditional Pakistani culinary language.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              description: { type: Type.STRING },
+              ingredients: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING } 
+              },
+              prepTime: { type: Type.STRING },
+              cookTime: { type: Type.STRING },
+              difficulty: { type: Type.STRING },
+              servings: { type: Type.STRING }
+            },
+            required: ["title", "description", "ingredients", "prepTime", "cookTime", "difficulty", "servings"]
+          }
+        }
+      });
+
+      const data = JSON.parse(response.text);
+      
+      setFormData(prev => ({
+        ...prev,
+        title: data.title,
+        description: data.description,
+        ingredients: data.ingredients,
+        prepTime: data.prepTime,
+        cookTime: data.cookTime,
+        difficulty: difficulties.includes(data.difficulty) ? data.difficulty : 'Medium',
+        servings: data.servings
+      }));
+
+      // Scroll to basic info
+      const element = document.getElementById('basic-info');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+
+    } catch (error) {
+      console.error("AI Generation Error:", error);
+      setAiError("ریسیپی بنانے میں مسئلہ ہوا۔ براہ کرم دوبارہ کوشش کریں۔");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -169,9 +243,62 @@ export default function SubmitRecipe() {
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-12">
-            {/* Basic Info */}
-            <section className="bg-white dark:bg-dark-surface p-10 rounded-[50px] shadow-xl border border-ruby/5">
+          <div className="space-y-12">
+            {/* AI Inspiration Section */}
+            <motion.section 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-coffee dark:bg-dark-surface p-10 rounded-[50px] shadow-2xl border-4 border-gold/20 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 w-full h-full bg-gold/5 animate-pulse pointer-events-none" />
+              <Wand2 className="absolute top-6 left-6 w-16 h-16 text-gold/10 -rotate-12 group-hover:scale-110 transition-transform" />
+              
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6 flex-row-reverse">
+                  <div className="p-3 bg-gold/20 rounded-2xl">
+                    <Sparkles className="w-6 h-6 text-gold" />
+                  </div>
+                  <div className="text-right">
+                    <h3 className="text-2xl font-serif font-black text-white">AI ریسیپی انسپیریشن</h3>
+                    <p className="text-gold/60 text-sm font-bold">صرف چند کلیدی الفاظ دیں اور AI کو جادو دکھانے دیں!</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-4 flex-row-reverse">
+                  <div className="flex-1 relative">
+                    <input 
+                      type="text" 
+                      value={aiKeywords}
+                      onChange={(e) => setAiKeywords(e.target.value)}
+                      placeholder="ناشتہ، انڈے، ٹماٹر، مسالے دار..."
+                      className="w-full px-8 py-5 bg-white/10 border-2 border-white/5 focus:border-gold/30 rounded-3xl outline-none transition-all text-lg font-bold text-white placeholder:text-white/20 text-right"
+                    />
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                      <Mic className="w-6 h-6 text-white/20" />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={generateRecipeFromAI}
+                    disabled={isGeneratingAI || !aiKeywords.trim()}
+                    className="px-10 py-5 bg-gold text-coffee rounded-3xl font-black text-lg shadow-xl shadow-gold/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-3"
+                  >
+                    {isGeneratingAI ? (
+                      <>تیار ہو رہا ہے... <Loader2 className="w-6 h-6 animate-spin" /></>
+                    ) : (
+                      <>جادو چلائیں! <Wand2 className="w-6 h-6" /></>
+                    )}
+                  </button>
+                </div>
+
+                {aiError && (
+                  <p className="mt-4 text-ruby font-bold text-sm text-right">{aiError}</p>
+                )}
+              </div>
+            </motion.section>
+
+            <form onSubmit={handleSubmit} className="space-y-12">
+              {/* Basic Info */}
+              <section id="basic-info" className="bg-white dark:bg-dark-surface p-10 rounded-[50px] shadow-xl border border-ruby/5">
               <h3 className="text-2xl font-serif font-black text-coffee dark:text-dark-text mb-8 border-b border-ruby/5 pb-4">بنیادی تفصیلات</h3>
               <div className="space-y-6">
                 <div className="relative group">
@@ -479,8 +606,9 @@ export default function SubmitRecipe() {
               >
                 کینسل کریں
               </button>
-            </div>
-          </form>
+              </div>
+            </form>
+          </div>
         )}
       </div>
     </div>
