@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&family=DM+Serif+Display&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "DM+Serif+Display", serif;
+  --font-display: "Syne", sans-serif;
+  
+  --color-ruby: #8D021F;
+  --color-gold: #DAA520;
+  --color-cream: #FDF6E3;
+  --color-coffee: #2C1810;
+
+  --color-dark-bg: #1a0f0a;
+  --color-dark-surface: #2d1b14;
+  --color-dark-text: #fdf6e3;
+}
+
+@layer base {
+  body {
+    @apply antialiased overflow-x-hidden bg-cream text-coffee font-sans transition-colors duration-300;
+  }
+
+  .dark body {
+    @apply bg-dark-bg text-dark-text;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+@layer utilities {
+  .bg-motif {
+    background-image: url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%238D021F" fill-opacity="0.04"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  @media print {
+    .no-print,
+    nav,
+    footer,
+    button,
+    .no-scrollbar,
+    .bg-motif,
+    .animate-float,
+    .absolute-circular-badge {
+      display: none !important;
+    }
+
+    body {
+      background: white !important;
+      color: black !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    .dark body {
+      background: white !important;
+      color: black !important;
+    }
+
+    .max-w-7xl {
+      max-width: 100% !important;
+      padding: 0 !important;
+    }
+
+    .grid {
+      display: block !important;
+    }
+
+    .aspect-square,
+    .aspect-video,
+    .aspect-\[5\/6\] {
+      aspect-ratio: auto !important;
+      height: auto !important;
+    }
+
+    img {
+      max-height: 400px !important;
+      width: auto !important;
+      margin: 20px auto !important;
+      border-radius: 20px !important;
+    }
+
+    .rounded-\[80px\],
+    .rounded-\[60px\],
+    .rounded-\[50px\],
+    .rounded-\[40px\] {
+      border-radius: 20px !important;
+    }
+
+    h1, h2, h3, h4 {
+      page-break-after: avoid;
+    }
+
+    .lg\:col-span-1, .lg\:col-span-2 {
+      width: 100% !important;
+      margin-bottom: 30px !important;
+    }
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+}

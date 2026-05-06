@@ -1,0 +1,8 @@
+{
+  "name": "Desi Dastarkhwan",
+  "description": "A premium Pakistani food blog and recipe platform featuring traditional dishes, refreshing drinks, and cultural stories.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}

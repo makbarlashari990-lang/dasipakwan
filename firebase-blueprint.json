@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "RecipeSubmission": {
+      "title": "Recipe Submission",
+      "description": "A recipe submitted by a user for moderation.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The name of the dish." },
+        "description": { "type": "string", "description": "A short summary of the dish." },
+        "category": { "type": "string", "enum": ["Breakfast", "Lunch", "Dinner", "Street Food", "Desserts"] },
+        "prepTime": { "type": "string", "description": "Preparation time." },
+        "cookTime": { "type": "string", "description": "Cooking time." },
+        "servings": { "type": "string", "description": "Number of servings." },
+        "difficulty": { "type": "string", "enum": ["Easy", "Medium", "Hard"] },
+        "ingredients": { "type": "array", "items": { "type": "string" } },
+        "instructions": { "type": "array", "items": { "type": "string" } },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "authorId": { "type": "string" },
+        "authorEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "category", "ingredients", "instructions", "authorId", "status", "createdAt"]
+    },
+    "RecipeCollection": {
+      "title": "Recipe Collection",
+      "description": "A custom user-created collection of recipes.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The name of the collection." },
+        "userId": { "type": "string", "description": "The owner of the collection." },
+        "recipeIds": { "type": "array", "items": { "type": "string" }, "description": "List of recipe IDs in this collection." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "userId", "recipeIds", "createdAt"]
+    },
+    "RecipeCreation": {
+      "title": "Recipe Creation",
+      "description": "A photo of a recipe cooked by a user.",
+      "type": "object",
+      "properties": {
+        "recipeId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userImage": { "type": "string" },
+        "imageUrl": { "type": "string", "description": "Base64 or URL of the cooked dish photo." },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipeId", "userId", "userName", "imageUrl", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/submissions/{submissionId}": {
+      "schema": "RecipeSubmission",
+      "description": "Collection of recipe submissions awaiting moderation."
+    },
+    "/collections/{collectionId}": {
+      "schema": "RecipeCollection",
+      "description": "Custom recipe folders for users."
+    },
+    "/creations/{creationId}": {
+      "schema": "RecipeCreation",
+      "description": "Photos gallery of users cooking recipes."
+    }
+  }
+}

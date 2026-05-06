@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSubmission(data) {
+      return data.title is string && data.title.size() <= 100 &&
+             data.description is string && data.description.size() <= 500 &&
+             data.category in ["Breakfast", "Lunch", "Dinner", "Street Food", "Desserts"] &&
+             data.difficulty in ["Easy", "Medium", "Hard"] &&
+             data.ingredients is list && data.ingredients.size() > 0 &&
+             data.instructions is list && data.instructions.size() > 0 &&
+             data.status in ["pending", "approved", "rejected"] &&
+             data.authorId == request.auth.uid;
+    }
+
+    match /submissions/{submissionId} {
+      allow create: if isSignedIn() && 
+                      isValidSubmission(request.resource.data) && 
+                      request.resource.data.status == "pending" &&
+                      request.resource.data.createdAt == request.time;
+      
+      allow read: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid ||
+        resource.data.status == "approved"
+      );
+      
+      // Updates only allowed by system/admin (not implemented yet, keeping restricted)
+      allow update, delete: if false;
+    }
+
+    match /collections/{collectionId} {
+      function isValidCollection(data) {
+        return data.name is string && data.name.size() > 0 && data.name.size() <= 64 &&
+               data.userId == request.auth.uid &&
+               data.recipeIds is list && data.recipeIds.size() <= 100;
+      }
+
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidCollection(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if isSignedIn() && 
+                      resource.data.userId == request.auth.uid && 
+                      isValidCollection(request.resource.data) &&
+                      request.resource.data.userId == resource.data.userId;
+    }
+
+    match /creations/{creationId} {
+      function isValidCreation(data) {
+        return data.recipeId is string &&
+               data.userId == request.auth.uid &&
+               data.userName is string &&
+               data.imageUrl is string && data.imageUrl.size() < 1048576; // Limit size for base64 if needed
+      }
+
+      allow read: if true;
+      allow create: if isSignedIn() && isValidCreation(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
